@@ -48,50 +48,53 @@ struct commandLine *parseCommand(char *command){
     int inputTest;
     int outputTest;
     int backgroundTest;
+    char *checker;
 
     // parse the rest of the users command
     while (token != NULL){
         if (test == 0){
             token = strtok_r(NULL, " ", &saveptr);
             }
-        // this is for when I check for the '&' being the last argument in the command.    
-        test = 0;
-        // if the next token is an input file
-        inputTest = strcmp(token, input);
-        if (inputTest == 0){
-            token = strtok_r(NULL, " ", &saveptr);
-            currCommand->inputFile = calloc(strlen(token) + 1, sizeof(char));
-            strcpy(currCommand->inputFile, token);
-            continue;
-        }
-        // // if the next token is an output file
-        // outputTest = strcmp(output, token);
-        // if (outputTest == 0){
-        //     token = strtok_r(NULL, " ", &saveptr);
-        //     currCommand->outputFile = calloc(strlen(token) + 1, sizeof(char));
-        //     strcpy(currCommand->outputFile, token);
-        //     continue;
-        // }
-        // // if the next token is potentially a background command
-        // backgroundTest = strcmp(background, token);
-        // if (backgroundTest == 0){
-        //     token = strtok_r(NULL, " ", &saveptr);
-        //     if (token == NULL){
-        //         currCommand->background = 1;
-        //         continue;
-        //     } else {
-        //         currCommand->args[i] = calloc(2, sizeof(char));
-        //         currCommand->args[i] = '&';
-        //         i++;
-        //         test = 1;
-        //         continue;
-        //     }
-        // }
-        // add token to args 
         if (token != NULL){
-            currCommand->args[i] = calloc(strlen(token) + 1, sizeof(char));
-            strcpy(currCommand->args[i], token);
-            i++;
+            // this is for when I check for the '&' being the last argument in the command.    
+            test = 0;
+            // if the next token is an input file
+            inputTest = strcmp(token, input);
+            if (inputTest == 0){
+                token = strtok_r(NULL, " ", &saveptr);
+                currCommand->inputFile = calloc(strlen(token) + 1, sizeof(char));
+                strcpy(currCommand->inputFile, token);
+                continue;
+            }
+            // if the next token is an output file
+            outputTest = strcmp(output, token);
+            if (outputTest == 0){
+                token = strtok_r(NULL, " ", &saveptr);
+                currCommand->outputFile = calloc(strlen(token) + 1, sizeof(char));
+                strcpy(currCommand->outputFile, token);
+                continue;
+            }
+            // if the next token is potentially a background command
+            backgroundTest = strcmp(background, token);
+            if (backgroundTest == 0){
+                token = strtok_r(NULL, " ", &saveptr);
+                if (token == NULL){
+                    currCommand->background = 1;
+                    continue;
+                } else {
+                    currCommand->args[i] = calloc(2, sizeof(char));
+                    currCommand->args[i] = '&';
+                    i++;
+                    test = 1;
+                    continue;
+                }
+            }
+            // add token to args 
+            if (token != NULL){
+                currCommand->args[i] = calloc(strlen(token) + 1, sizeof(char));
+                strcpy(currCommand->args[i], token);
+                i++;
+            }
         }
     }
     return currCommand;
@@ -120,13 +123,11 @@ int main(){
 
     printf("%s \n", parsedResponse->inputFile);
 
-    // char *poop = "poop";
+    printf("%s \n", parsedResponse->outputFile);
 
-    // int test = strcmp(poop, response);
+    printf("%d \n", parsedResponse->background);
 
-    // if (test == 0){
-    //     printf("what?");
-    // }
+
 
 
 	return 0;
