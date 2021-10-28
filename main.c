@@ -10,6 +10,7 @@
 #define INPUT "<"
 #define OUTPUT ">"
 #define BACKGROUND "&"
+#define COMMENT "#"
 
 
 /* struct for user entered commands */
@@ -19,12 +20,13 @@ struct commandLine {
     char *inputFile;
     char *outputFile;
     int background;
+    int comment;
 };
 
 
 
 
-
+// parse the user entered 
 struct commandLine *parseCommand(char *command){
 
     // allocate memory for whole struct
@@ -37,18 +39,18 @@ struct commandLine *parseCommand(char *command){
     // get command 
     char *token = strtok_r(command, " ", &saveptr);
     currCommand->command = calloc(strlen(token) + 1, sizeof(char));
+    // if line starts with #, line is comment
+    if (strncmp(COMMENT, token, 1) == 0){
+        currCommand->comment = 1;
+        return currCommand;
+    }
     strcpy(currCommand->command, token);
 
     int test = 0;
     int i = 0;
-
-    char *input = "<";
-    char *output = ">";
-    char *background = "&";
     int inputTest;
     int outputTest;
     int backgroundTest;
-    char *checker;
 
     // parse the rest of the users command
     while (token != NULL){
@@ -56,10 +58,10 @@ struct commandLine *parseCommand(char *command){
             token = strtok_r(NULL, " ", &saveptr);
             }
         if (token != NULL){
-            // this is for when I check for the '&' being the last argument in the command.    
+            // this is for checking the '&' being the last argument in the command.    
             test = 0;
             // if the next token is an input file
-            inputTest = strcmp(token, input);
+            inputTest = strcmp(INPUT, token);
             if (inputTest == 0){
                 token = strtok_r(NULL, " ", &saveptr);
                 currCommand->inputFile = calloc(strlen(token) + 1, sizeof(char));
@@ -67,7 +69,7 @@ struct commandLine *parseCommand(char *command){
                 continue;
             }
             // if the next token is an output file
-            outputTest = strcmp(output, token);
+            outputTest = strcmp(OUTPUT, token);
             if (outputTest == 0){
                 token = strtok_r(NULL, " ", &saveptr);
                 currCommand->outputFile = calloc(strlen(token) + 1, sizeof(char));
@@ -75,7 +77,7 @@ struct commandLine *parseCommand(char *command){
                 continue;
             }
             // if the next token is potentially a background command
-            backgroundTest = strcmp(background, token);
+            backgroundTest = strcmp(BACKGROUND, token);
             if (backgroundTest == 0){
                 token = strtok_r(NULL, " ", &saveptr);
                 if (token == NULL){
@@ -83,7 +85,7 @@ struct commandLine *parseCommand(char *command){
                     continue;
                 } else {
                     currCommand->args[i] = calloc(2, sizeof(char));
-                    currCommand->args[i] = '&';
+                    currCommand->args[i] = "&";
                     i++;
                     test = 1;
                     continue;
@@ -108,11 +110,14 @@ int main(){
 
 
 
-    printf(":");
+    printf(": ");
     char response[2048];
     scanf("%[^\n]s", response);
 
     struct commandLine *parsedResponse = parseCommand(response);
+
+    printf("%d \n", parsedResponse->comment);
+
 
     printf("%s \n", parsedResponse->command);
 
