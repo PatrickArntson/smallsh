@@ -32,22 +32,25 @@ struct commandLine *parseCommand(char *command){
     // allocate memory for whole struct
     struct commandLine *currCommand = malloc(sizeof(struct commandLine));
     // allocate memory for args array
-    currCommand->args = (char**)malloc(512*sizeof(char*));
+    currCommand->args = (char**)malloc(513*sizeof(char*));
 
     char *saveptr;
+    int i = 0;
 
-    // get command 
+    // get command (putting command as first ele in args array instead of own struct ele currently)
     char *token = strtok_r(command, " ", &saveptr);
-    currCommand->command = calloc(strlen(token) + 1, sizeof(char));
+    currCommand->args[i] = calloc(strlen(token) + 1, sizeof(char));
+    // currCommand->command = calloc(strlen(token) + 1, sizeof(char));
     // if line starts with #, line is comment
     if (strncmp(COMMENT, token, 1) == 0){
         currCommand->comment = 1;
         return currCommand;
     }
-    strcpy(currCommand->command, token);
+    // strcpy(currCommand->command, token);
+    strcpy(currCommand->args[i], token);
+    i++;
 
     int test = 0;
-    int i = 0;
     int inputTest;
     int outputTest;
     int backgroundTest;
@@ -102,37 +105,90 @@ struct commandLine *parseCommand(char *command){
     return currCommand;
 }
 
+// I couldnt get fflush(stdin) to do anything about stopping an infinite loop, so I found this on stack overflow
+// https://stackoverflow.com/questions/53474700/c-scanf-did-not-stop-in-infinite-while-loop
+void empty_stdin(void) {
+    int c = getchar();
+
+    while (c != '\n' && c != EOF)
+        c = getchar();
+}
 
 
 
 int main(){
 	
+    char response[2049];
+    int foregroundStatus = 0;
+    int *statusptr;
+    statusptr = &foregroundStatus;
+    pid_t spawnpid;
 
 
+    while(1){
+        waitpid()
+        printf(": ");
+        fflush(stdout);
+        scanf("%[^\n]s", &response);
+        empty_stdin();
 
-    printf(": ");
-    char response[2048];
-    scanf("%[^\n]s", response);
+        // exit command
+        if (strcmp(response, "exit")==0){
+            break;
+        }
 
-    struct commandLine *parsedResponse = parseCommand(response);
+        // comment line
+        if (strlen(response) == 0 || response == NULL){
+            printf("comment worked\n");
+            fflush(stdout);
+            break;
+        }
 
-    printf("%d \n", parsedResponse->comment);
+        else {
+            struct commandLine *parsedResponse = parseCommand(response);
+
+            // cd command
+            if (strcmp(parsedResponse->args[0], "cd") == 0){
+                // foregroundStatus = 5;
+                if (parsedResponse->args[1] == NULL){
+                    char *home = getenv("HOME");
+                    chdir(home);
+                    continue;
+                } else {
+                    chdir(parsedResponse->args[1]);
+                    continue;
+                }
+            }
+
+            // status command
+            if (strcmp(parsedResponse->args[0], "status")==0){
+                printf("%d \n", *statusptr);
+                fflush(stdout);
+            }
 
 
-    printf("%s \n", parsedResponse->command);
+            // printf("%d \n", parsedResponse->comment);
+            // fflush(stdout);
 
+            // printf("%s \n", parsedResponse->command);
+            // fflush(stdout);
+            // for (int i = 0; parsedResponse->args[i] != '\0'; i++){
+            //     printf("%s \n", parsedResponse->args[i]);
+            //     fflush(stdout);
+            // }
 
-    for (int i = 0; parsedResponse->args[i] != '\0'; i++){
-        printf("%s \n", parsedResponse->args[i]);
+            // printf("%s \n", parsedResponse->inputFile); 
+            // fflush(stdout);
+
+            // printf("%s \n", parsedResponse->outputFile);
+            // fflush(stdout);
+
+            // printf("%d \n", parsedResponse->background);
+            // fflush(stdout);
+            // continue;
+
+        }
     }
-
-    printf("%s \n", parsedResponse->inputFile);
-
-    printf("%s \n", parsedResponse->outputFile);
-
-    printf("%d \n", parsedResponse->background);
-
-
 
 
 	return 0;
