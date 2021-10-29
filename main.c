@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <fcntl.h>
+#include <signal.h>
 
 #define INPUT "<"
 #define OUTPUT ">"
@@ -226,13 +227,31 @@ int main(){
     int childStatus;
     pid_t *backgroundPid;
 
+    // SIGINT handling
+    struct sigaction SIGINT_action = {0};
+
+    // Fill out the SIGINT_action struct
+    // Register SIG_IGN as the signal handler
+    SIGINT_action.sa_handler = SIG_IGN;
+    // Block all catchable signals while SIG_IGN is running
+    sigfillset(&SIGINT_action.sa_mask);
+    // No flags set
+    SIGINT_action.sa_flags = 0;
+    // Install our signal handler
+    sigaction(SIGINT, &SIGINT_action, NULL);
 
     while(1){
     
         pid_t childCheck = waitpid(-1, &childStatus, WNOHANG);
         if (childCheck != 0 && childCheck != -1){
-            printf("Background pid %d is done \n", childCheck);
-            fflush(stdout);
+            while(1){
+                printf("Background pid %d is done \n", childCheck);
+                fflush(stdout);
+                childCheck = waitpid(0, &childStatus, WNOHANG);
+                if (childCheck == 0 || childCheck == -1){
+                    break;
+                }
+            }
         }
         printf(": ");
         fflush(stdout);
@@ -307,17 +326,6 @@ int main(){
 
             }
 
-        }
-        childCheck = waitpid(0, &childStatus, WNOHANG);
-        if (childCheck != 0 && childCheck != -1){
-            while(1){
-                printf("Background pid %d is done \n", childCheck);
-                fflush(stdout);
-                childCheck = waitpid(0, &childStatus, WNOHANG);
-                if (childCheck == 0 || childCheck == -1){
-                    break;
-                }
-            }
         }
     }
 
