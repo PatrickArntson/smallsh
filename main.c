@@ -13,6 +13,9 @@
 #define BACKGROUND "&"
 #define COMMENT "#"
 
+// global volatile variable for handling SIGTSTP
+volatile sig_atomic_t got_signal = 0;
+
 
 /* struct for user entered commands */
 struct commandLine { 
@@ -24,9 +27,7 @@ struct commandLine {
 };
 
 
-
-
-// parse the user entered 
+// parse the user entered command
 struct commandLine *parseCommand(char *command){
 
     // allocate memory for whole struct
@@ -193,21 +194,15 @@ int executeCommand(struct commandLine* currCommand){
 }
 
 
-void handle_SIGINT(int sig){
-    char* message = " Terminated by signal 2\n";
-    write(1, message, 23);
-    kill(getpid(), SIGTERM);
-}
-
-void handle_SIGTSTP(int sig, int* SIGTSTPptr){
-    if(*SIGTSTPptr == 0){
-        char* message = "Entering foreground-only mode (& is now ignored)\n";
-        write(1, message, 50);
-        *SIGTSTPptr = 1;
+void handle_SIGTSTP(int sig){
+    if(got_signal == 0){
+        char* message = "\nEntering foreground-only mode (& is now ignored)\n:";
+        write(1, message, 52);
+        got_signal = 1;
     } else {
-        char* message = "Exiting foreground-only mode\n";
-        write(1, message, 30);
-        *SIGTSTPptr = 0;
+        char* message = "\nExiting foreground-only mode\n:";
+        write(1, message, 32);
+        got_signal = 0;
     }
 }
 
@@ -229,25 +224,19 @@ int main(){
     int foregroundStatus = 0;
     int childStatus;
     int statusMessage;
-    int *SIGTSTPptr;
-    int SIGTSTPbool = 0;
-    SIGTSTPptr = &SIGTSTPbool;
-
 
     // SIGINT handling
     struct sigaction SIGINT_action = {0};
-    struct sigaction SIGTSTP_action = {0};
-
     SIGINT_action.sa_handler = SIG_IGN;
-    SIGTSTP_action.sa_handler = handle_SIGTSTP;
-
     sigfillset(&SIGINT_action.sa_mask);
-    sigfillset(&SIGTSTP_action.sa_mask);
-
     SIGINT_action.sa_flags = 0;
-    SIGTSTP_action.sa_flags = 0;
-
     sigaction(SIGINT, &SIGINT_action, NULL);
+
+    // SIGTSTP handling
+    struct sigaction SIGTSTP_action = {0};
+    SIGTSTP_action.sa_handler = handle_SIGTSTP;
+    sigfillset(&SIGTSTP_action.sa_mask);
+    SIGTSTP_action.sa_flags = SA_RESTART;
     sigaction(SIGTSTP, &SIGTSTP_action, NULL);
 
     while(1){
@@ -299,20 +288,15 @@ int main(){
 
             struct commandLine *parsedResponse = parseCommand(response);
 
-
-            // // if command is a foreground process, we want SIG_INT to use its default behavior
-            // if (parsedResponse->background == 0){
-
-            //     // SIGINT handling
-            //     struct sigaction SIGINT_action = {0};
-            //     SIGINT_action.sa_handler = handle_SIGINT;
-            //     sigfillset(&SIGINT_action.sa_mask);
-            //     SIGINT_action.sa_flags = SA_RESTART;
-            //     sigaction(SIGINT, &SIGINT_action, NULL);
-            // }
-
+            // if SIGTSTP is recieved, no background processes will be handled
+            if (got_signal == 1){
+                parsedResponse->background = 0;
+            }
 
             // if comment line, just ignore and go to next line
+            // if (strlen(response) == 0 || response == NULL){
+            //     parsedResponse->comment = 1;
+            // }
             if (parsedResponse->comment == 1){
                 continue;
             }
@@ -350,8 +334,6 @@ int main(){
                         break;
                     case 0:
 
-                        // printf("%d\n", *SIGTSTPptr);
-
                         // if command is a foreground process, we want SIG_INT to use its default behavior
                         if (parsedResponse->background == 0){
                             // SIGINT handling
@@ -362,12 +344,12 @@ int main(){
                             sigaction(SIGINT, &SIGINT_action, NULL);
                         }
 
-                        // // SIGSTP handling
-                        // struct sigaction SIGTSTP_action = {0};
-                        // SIGTSTP_action.sa_handler = SIG_IGN;
-                        // sigfillset(&SIGTSTP_action.sa_mask);
-                        // SIGTSTP_action.sa_flags = 0;
-                        // sigaction(SIGTSTP, &SIGTSTP_action, NULL);
+                        // SIGSTP handling
+                        struct sigaction SIGTSTP_action = {0};
+                        SIGTSTP_action.sa_handler = SIG_IGN;
+                        sigfillset(&SIGTSTP_action.sa_mask);
+                        SIGTSTP_action.sa_flags = 0;
+                        sigaction(SIGTSTP, &SIGTSTP_action, NULL);
 
 
                         executeCommand(parsedResponse);
@@ -383,6 +365,7 @@ int main(){
                             } else {
                                 // statusMessge = 1 means terminted by signal
                                 printf("Terminated by signal %d\n", WTERMSIG(childStatus));
+                                fflush(stdout);
                                 statusMessage = 1;
                                 foregroundStatus = WTERMSIG(childStatus);
                             }
