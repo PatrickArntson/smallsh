@@ -268,6 +268,7 @@ int main(){
         // New line for user input
         printf(": ");
         fflush(stdout);
+        // maybe try fgets again?
         scanf("%[^\n]s", &response);
         // without this empty_stdin function, the loop would be infinite
         empty_stdin();
