@@ -189,7 +189,7 @@ int executeCommand(struct commandLine* currCommand){
     // execute the command
     execvp(currCommand->args[0], currCommand->args);
     perror(currCommand->args[0]);
-    return 2;
+    exit(1);
 }
 
 
@@ -256,7 +256,7 @@ int main(){
         if (childCheck != 0 && childCheck != -1){
             while(2){
                 // check backgroundPid array to verify that ChildCheck is a background process
-                for(int i = 0; i < 1000; i++){
+                for(int i = 0; i < sizeof(backgroundPids)/sizeof(int); i++){
                     if(backgroundPids[i] == childCheck){
                         printf("background pid %d is done: ", childCheck);
                         fflush(stdout);
@@ -288,7 +288,7 @@ int main(){
 
         // exit command
         if (strcmp(response, "exit")==0){
-            for (int i = 0; i < 1000; i++){
+            for (int i = 0; i < sizeof(backgroundPids)/sizeof(int); i++){
                 if (backgroundPids[i] != 0){
                     kill(backgroundPids[i], SIGTERM);
                 }
