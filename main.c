@@ -15,8 +15,7 @@
 
 
 /* struct for user entered commands */
-struct commandLine {
-    char *command; 
+struct commandLine { 
     char **args;
     char *inputFile;
     char *outputFile;
@@ -40,16 +39,14 @@ struct commandLine *parseCommand(char *command){
     // have to initiate background to 0
     currCommand->background = 0;
 
-    // get command (putting command as first ele in args array instead of own struct ele currently)
+    // put command as first element in args array
     char *token = strtok_r(command, " ", &saveptr);
     currCommand->args[i] = calloc(strlen(token) + 1, sizeof(char));
-    // currCommand->command = calloc(strlen(token) + 1, sizeof(char));
     // if line starts with #, line is comment
     if (strncmp(COMMENT, token, 1) == 0 || token == NULL){
         currCommand->comment = 1;
         return currCommand;
     }
-    // strcpy(currCommand->command, token);
     strcpy(currCommand->args[i], token);
     i++;
 
@@ -109,20 +106,20 @@ struct commandLine *parseCommand(char *command){
 }
 
 
+
+
 // This function executes the user given command and handles input, output, and background info
 int executeCommand(struct commandLine* currCommand){
-    
+
+
     // if inputFile is specified
     if(currCommand->inputFile != NULL){
         // Open source file
         int sourceFD = open(currCommand->inputFile, O_RDONLY);
         if (sourceFD == -1) { 
-            // maybe dont use printf here? maybe use write function if issue arises
             printf("cannot open %s for input \n", currCommand->inputFile); 
             exit(1); 
         }
-        // // Written to terminal
-        // printf("sourceFD == %d\n", sourceFD); 
 
         // Redirect stdin to source file
         int result = dup2(sourceFD, 0);
@@ -140,9 +137,6 @@ int executeCommand(struct commandLine* currCommand){
             perror("target open()"); 
             exit(1); 
         }
-
-        // // Written to terminal
-        // printf("targetFD == %d\n", targetFD); 
     
         // Redirect stdout to target file
         int result = dup2(targetFD, 1);
@@ -162,9 +156,6 @@ int executeCommand(struct commandLine* currCommand){
                 perror("target open()"); 
                 exit(1); 
             }
-
-            // // Written to terminal
-            // printf("targetFD == %d\n", targetFD); 
         
             // Redirect stdout to target file
             int result = dup2(targetFD, 1);
@@ -182,8 +173,6 @@ int executeCommand(struct commandLine* currCommand){
                 perror("source open()"); 
                 exit(1); 
             }
-            // // Written to terminal
-            // printf("sourceFD == %d\n", sourceFD); 
 
             // Redirect stdin to source file
             int result = dup2(sourceFD, 0);
@@ -204,7 +193,23 @@ int executeCommand(struct commandLine* currCommand){
 }
 
 
+void handle_SIGINT(int sig){
+    char* message = " Terminated by signal 2\n";
+    write(1, message, 23);
+    kill(getpid(), SIGTERM);
+}
 
+void handle_SIGTSTP(int sig, int* SIGTSTPptr){
+    if(*SIGTSTPptr == 0){
+        char* message = "Entering foreground-only mode (& is now ignored)\n";
+        write(1, message, 50);
+        *SIGTSTPptr = 1;
+    } else {
+        char* message = "Exiting foreground-only mode\n";
+        write(1, message, 30);
+        *SIGTSTPptr = 0;
+    }
+}
 
 
 // I couldnt get fflush(stdin) to do anything about stopping an infinite loop, so I found this on stack overflow
@@ -220,44 +225,64 @@ void empty_stdin(void) {
 int main(){
 	
     char response[2049];
+    int backgroundPids[1000] = { 0 };
     int foregroundStatus = 0;
-    int *statusptr;
-    statusptr = &foregroundStatus;
-    pid_t spawnPid;
     int childStatus;
-    pid_t *backgroundPid;
+    int statusMessage;
+    int *SIGTSTPptr;
+    int SIGTSTPbool = 0;
+    SIGTSTPptr = &SIGTSTPbool;
+
 
     // SIGINT handling
     struct sigaction SIGINT_action = {0};
+    struct sigaction SIGTSTP_action = {0};
 
-    // Fill out the SIGINT_action struct
-    // Register SIG_IGN as the signal handler
     SIGINT_action.sa_handler = SIG_IGN;
-    // Block all catchable signals while SIG_IGN is running
+    SIGTSTP_action.sa_handler = handle_SIGTSTP;
+
     sigfillset(&SIGINT_action.sa_mask);
-    // No flags set
+    sigfillset(&SIGTSTP_action.sa_mask);
+
     SIGINT_action.sa_flags = 0;
-    // Install our signal handler
+    SIGTSTP_action.sa_flags = 0;
+
     sigaction(SIGINT, &SIGINT_action, NULL);
+    sigaction(SIGTSTP, &SIGTSTP_action, NULL);
 
     while(1){
-    
+        
+        // check for terminated background processes
         pid_t childCheck = waitpid(-1, &childStatus, WNOHANG);
         if (childCheck != 0 && childCheck != -1){
-            while(1){
-                printf("Background pid %d is done \n", childCheck);
-                fflush(stdout);
-                childCheck = waitpid(0, &childStatus, WNOHANG);
+            while(2){
+                // check backgroundPid array to verify that ChildCheck is a background process
+                for(int i = 0; i < 1000; i++){
+                    if(backgroundPids[i] == childCheck){
+                        if(WIFEXITED(childStatus)){
+                            printf("Child %d exited normally with status %d\n", childCheck, WEXITSTATUS(childStatus));
+                        } else{
+                            printf("Child %d exited abnormally due to signal %d\n", childCheck, WTERMSIG(childStatus));
+                        }
+                        fflush(stdout);
+                        backgroundPids[i] = 0;
+                        break;
+                    }
+                }
+                childCheck = waitpid(-1, &childStatus, WNOHANG);
                 if (childCheck == 0 || childCheck == -1){
                     break;
                 }
             }
         }
+
+        // New line for user input
         printf(": ");
         fflush(stdout);
         scanf("%[^\n]s", &response);
         // without this empty_stdin function, the loop would be infinite
         empty_stdin();
+
 
         // exit command
         if (strcmp(response, "exit")==0){
@@ -265,7 +290,7 @@ int main(){
             return 0;
         }
 
-        // comment line command
+        // comment line 
         if (strlen(response) == 0 || response == NULL){
             continue;
         }
@@ -274,14 +299,26 @@ int main(){
 
             struct commandLine *parsedResponse = parseCommand(response);
 
-            // if multiple spaces (i.e. comment line)
+
+            // // if command is a foreground process, we want SIG_INT to use its default behavior
+            // if (parsedResponse->background == 0){
+
+            //     // SIGINT handling
+            //     struct sigaction SIGINT_action = {0};
+            //     SIGINT_action.sa_handler = handle_SIGINT;
+            //     sigfillset(&SIGINT_action.sa_mask);
+            //     SIGINT_action.sa_flags = SA_RESTART;
+            //     sigaction(SIGINT, &SIGINT_action, NULL);
+            // }
+
+
+            // if comment line, just ignore and go to next line
             if (parsedResponse->comment == 1){
                 continue;
             }
 
             // cd command
             if (strcmp(parsedResponse->args[0], "cd") == 0){
-                // foregroundStatus = 5;
                 if (parsedResponse->args[1] == NULL){
                     char *home = getenv("HOME");
                     chdir(home);
@@ -294,33 +331,73 @@ int main(){
 
             // status command
             if (strcmp(parsedResponse->args[0], "status")==0){
-                printf("%d \n", *statusptr);
+                // if statusMessage == 0, its a regular exit, else it was terminated by a signal
+                if (statusMessage == 0){
+                    printf("exit value %d \n", foregroundStatus);
+                } else {
+                    printf("terminated by signal %d \n", foregroundStatus);
+                }
                 fflush(stdout);
-                // continue;
             }
 
-            // execute other commands
+            // execute non built-in commands
             else {
-                pid_t childPid = fork();
-                switch(childPid){
+                pid_t spawnPid = fork();
+                switch(spawnPid){
                     case -1:
                         perror("fork()\n");
                         exit(1);
                         break;
                     case 0:
+
+                        // printf("%d\n", *SIGTSTPptr);
+
+                        // if command is a foreground process, we want SIG_INT to use its default behavior
+                        if (parsedResponse->background == 0){
+                            // SIGINT handling
+                            struct sigaction SIGINT_action = {0};
+                            SIGINT_action.sa_handler = SIG_DFL;
+                            sigfillset(&SIGINT_action.sa_mask);
+                            SIGINT_action.sa_flags = 0;
+                            sigaction(SIGINT, &SIGINT_action, NULL);
+                        }
+
+                        // // SIGSTP handling
+                        // struct sigaction SIGTSTP_action = {0};
+                        // SIGTSTP_action.sa_handler = SIG_IGN;
+                        // sigfillset(&SIGTSTP_action.sa_mask);
+                        // SIGTSTP_action.sa_flags = 0;
+                        // sigaction(SIGTSTP, &SIGTSTP_action, NULL);
+
+
                         executeCommand(parsedResponse);
                     default:
                         // if foreground process
                         if (parsedResponse->background == 0){
-                           waitpid(childPid, &childStatus, 0); 
-                           foregroundStatus = childStatus;
-                        //    continue;
+                           pid_t childPid = waitpid(spawnPid, &childStatus, 0);
+                           // set status after every foregound process completes 
+                           if(WIFEXITED(childStatus) && childPid != -1){
+                                // statusMessage = 0 means exited normally
+                                statusMessage = 0;
+                                foregroundStatus = WEXITSTATUS(childStatus);
+                            } else {
+                                // statusMessge = 1 means terminted by signal
+                                printf("Terminated by signal %d\n", WTERMSIG(childStatus));
+                                statusMessage = 1;
+                                foregroundStatus = WTERMSIG(childStatus);
+                            }
                         } 
                         // if background process
                         else {
-                            printf("background pid is %d\n", childPid);
+                            printf("background pid is %d\n", spawnPid);
+                            // add background Pid to backgroundPid array
+                            for(int i = 0; i < 1000; i++){
+                                if(backgroundPids[i] == 0){
+                                    backgroundPids[i] = spawnPid;
+                                    break;
+                                }
+                            }
                             fflush(stdout);
-                            // continue;
                         }
                 }
 
