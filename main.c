@@ -15,6 +15,7 @@
 
 // global volatile variable for handling SIGTSTP
 volatile sig_atomic_t got_signal = 0;
+volatile sig_atomic_t curr_foreground_process = 0;
 
 
 /* struct for user entered commands */
@@ -188,20 +189,26 @@ int executeCommand(struct commandLine* currCommand){
     // execute the command
     execvp(currCommand->args[0], currCommand->args);
     perror(currCommand->args[0]);
-    exit(2);
-    
     return 2;
 }
 
 
 void handle_SIGTSTP(int sig){
     if(got_signal == 0){
-        char* message = "\nEntering foreground-only mode (& is now ignored)\n:";
-        write(1, message, 52);
+        char* message = "\nEntering foreground-only mode (& is now ignored)\n";
+        write(1, message, 50);
+        if (curr_foreground_process == 0){
+            char* extra_message = ": ";
+            write(1, extra_message, 2);
+        }
         got_signal = 1;
     } else {
-        char* message = "\nExiting foreground-only mode\n:";
-        write(1, message, 32);
+        char* message = "\nExiting foreground-only mode\n";
+        write(1, message, 30);
+        if (curr_foreground_process == 0){
+            char* extra_message = ": ";
+            write(1, extra_message, 2);
+        }
         got_signal = 0;
     }
 }
@@ -219,6 +226,7 @@ void empty_stdin(void) {
 
 int main(){
 	
+    // local variables
     char response[2049];
     int backgroundPids[1000] = { 0 };
     int foregroundStatus = 0;
@@ -240,7 +248,9 @@ int main(){
     sigaction(SIGTSTP, &SIGTSTP_action, NULL);
 
     while(1){
-        
+        // tells global variable that no foreground process is currently active for the SIGTSTP handler
+        curr_foreground_process = 0;
+
         // check for terminated background processes
         pid_t childCheck = waitpid(-1, &childStatus, WNOHANG);
         if (childCheck != 0 && childCheck != -1){
@@ -248,10 +258,12 @@ int main(){
                 // check backgroundPid array to verify that ChildCheck is a background process
                 for(int i = 0; i < 1000; i++){
                     if(backgroundPids[i] == childCheck){
+                        printf("background pid %d is done: ", childCheck);
+                        fflush(stdout);
                         if(WIFEXITED(childStatus)){
-                            printf("Child %d exited normally with status %d\n", childCheck, WEXITSTATUS(childStatus));
+                            printf("exit value %d\n", WEXITSTATUS(childStatus));
                         } else{
-                            printf("Child %d exited abnormally due to signal %d\n", childCheck, WTERMSIG(childStatus));
+                            printf("terminated by signal %d\n", WTERMSIG(childStatus));
                         }
                         fflush(stdout);
                         backgroundPids[i] = 0;
@@ -264,11 +276,11 @@ int main(){
                 }
             }
         }
-
+        // erase response string before every new response is taken
+        memset(response,0,strlen(response));
         // New line for user input
         printf(": ");
         fflush(stdout);
-        // maybe try fgets again?
         scanf("%[^\n]s", &response);
         // without this empty_stdin function, the loop would be infinite
         empty_stdin();
@@ -276,8 +288,12 @@ int main(){
 
         // exit command
         if (strcmp(response, "exit")==0){
-            killpg(getpid(), SIGTERM);
-            return 0;
+            for (int i = 0; i < 1000; i++){
+                if (backgroundPids[i] != 0){
+                    kill(backgroundPids[i], SIGTERM);
+                }
+            }
+            exit(0);
         }
 
         // comment line 
@@ -294,10 +310,12 @@ int main(){
                 parsedResponse->background = 0;
             }
 
-            // if comment line, just ignore and go to next line
-            // if (strlen(response) == 0 || response == NULL){
-            //     parsedResponse->comment = 1;
-            // }
+            // tells SIGTSTP foreground process is happening for output purposes
+            if (parsedResponse->background == 0){
+                curr_foreground_process = 1;
+            }
+
+            // comment
             if (parsedResponse->comment == 1){
                 continue;
             }
@@ -316,7 +334,6 @@ int main(){
 
             // status command
             if (strcmp(parsedResponse->args[0], "status")==0){
-                // if statusMessage == 0, its a regular exit, else it was terminated by a signal
                 if (statusMessage == 0){
                     printf("exit value %d \n", foregroundStatus);
                 } else {
@@ -334,7 +351,6 @@ int main(){
                         exit(1);
                         break;
                     case 0:
-
                         // if command is a foreground process, we want SIG_INT to use its default behavior
                         if (parsedResponse->background == 0){
                             // SIGINT handling
