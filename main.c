@@ -27,9 +27,63 @@ struct commandLine {
     int comment;
 };
 
+/*
+* This function was mostly borrowed from Bram Lewis's comment on Ed Discussion post #98. 
+*/
+void variableExpansion(char *ptrThatString, char *pid, char *newChar){
+    int writeToIndex = 0;
+    int foundOne = 0;
+    int foundIndex = 0;
+
+    // Iterate thru original string
+    for (int originalStringIndex = 0; originalStringIndex < strlen(ptrThatString); originalStringIndex++ ){
+        if (ptrThatString[originalStringIndex] != '$'){
+            // incase only one $ was recieved
+            if (foundOne == 1){
+                newChar[writeToIndex] = ptrThatString[originalStringIndex - 1];
+                writeToIndex++;
+                foundOne = 0;
+            }
+            newChar[writeToIndex] = ptrThatString[originalStringIndex];
+            writeToIndex++;
+        } else {
+            // if first $ is found
+            if (foundOne == 0)
+            {
+                foundOne++;
+                foundIndex = originalStringIndex;
+                // if $ is last char in the string
+                if (originalStringIndex == strlen(ptrThatString) - 1){
+                    newChar[writeToIndex] = ptrThatString[originalStringIndex];
+                    writeToIndex++;
+                }
+            }
+            else if (foundOne == 1){
+                // if second consecutive $ is found
+                if (foundIndex == originalStringIndex -1){
+                    for(int i = 0; i < strlen(pid); i++){
+                        newChar[writeToIndex] = pid[i];
+                        writeToIndex++;
+                    }
+                } 
+                foundOne = 0;
+            }
+        }
+    }
+
+    // Adjust end of char array by replacing all remaining char with null termination
+    for (; writeToIndex < strlen(newChar); writeToIndex++){
+        newChar[writeToIndex] = '\0';
+        writeToIndex++;
+    }
+}
+
+
+
+
 
 // parse the user entered command
-struct commandLine *parseCommand(char *command){
+struct commandLine *parseCommand(char *command, pid_t currPid){
 
     // allocate memory for whole struct
     struct commandLine *currCommand = malloc(sizeof(struct commandLine));
@@ -56,6 +110,9 @@ struct commandLine *parseCommand(char *command){
     int inputTest;
     int outputTest;
     int backgroundTest;
+    char stringPid[30];
+    char newStr[2049];
+    sprintf(stringPid, "%d", currPid);
 
     // parse the rest of the users command
     while (token != NULL){
@@ -65,6 +122,12 @@ struct commandLine *parseCommand(char *command){
         if (token != NULL){
             // this is for checking the '&' being the last argument in the command.    
             test = 0;
+
+            // checking for variable expansion
+            if(strlen(token) > 1){
+                variableExpansion(token, stringPid, newStr);
+                token = newStr;
+            }
             // if the next token is an input file
             inputTest = strcmp(INPUT, token);
             if (inputTest == 0){
@@ -276,6 +339,7 @@ int main(){
                 }
             }
         }
+
         // erase response string before every new response is taken
         memset(response,0,strlen(response));
         // New line for user input
@@ -296,14 +360,15 @@ int main(){
             exit(0);
         }
 
-        // comment line 
+        // blank line comment
         if (strlen(response) == 0 || response == NULL){
             continue;
         }
 
         else {
-
-            struct commandLine *parsedResponse = parseCommand(response);
+            pid_t currPid = getpid();
+            
+            struct commandLine *parsedResponse = parseCommand(response, currPid);
 
             // if SIGTSTP is recieved, no background processes will be handled
             if (got_signal == 1){
