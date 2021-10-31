@@ -1,3 +1,9 @@
+// Author: Patrick Arntson
+// Class: CS 344 Operating Systems
+// Assignment 3: smallsh
+// Description: When executed, this program emulates a new shell similar to a bash shell. General Syntax for command line is: 
+// command [arg1 arg2 ...] [< input_file] [> output_file] [&]
+
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -28,7 +34,8 @@ struct commandLine {
 };
 
 /*
-* This function was mostly borrowed from Bram Lewis's comment on Ed Discussion post #98. 
+Provides variable expansion for the $$ operator.
+This function was partially borrowed from Bram Lewis's comment on Ed Discussion post #98. 
 */
 void variableExpansion(char *ptrThatString, char *pid, char *newChar){
     int writeToIndex = 0;
@@ -81,8 +88,9 @@ void variableExpansion(char *ptrThatString, char *pid, char *newChar){
 
 
 
-
-// parse the user entered command
+/*
+parses the user entered command
+*/
 struct commandLine *parseCommand(char *command, pid_t currPid){
 
     // allocate memory for whole struct
@@ -106,10 +114,12 @@ struct commandLine *parseCommand(char *command, pid_t currPid){
     strcpy(currCommand->args[i], token);
     i++;
 
+    // for parsing the strings
     int test = 0;
     int inputTest;
     int outputTest;
     int backgroundTest;
+    // for checking for variable expansion
     char stringPid[30];
     char newStr[2049];
     sprintf(stringPid, "%d", currPid);
@@ -122,7 +132,6 @@ struct commandLine *parseCommand(char *command, pid_t currPid){
         if (token != NULL){
             // this is for checking the '&' being the last argument in the command.    
             test = 0;
-
             // checking for variable expansion
             if(strlen(token) > 1){
                 variableExpansion(token, stringPid, newStr);
@@ -172,8 +181,9 @@ struct commandLine *parseCommand(char *command, pid_t currPid){
 
 
 
-
-// This function executes the user given command and handles input, output, and background info
+/*
+executes the user given command and handles input, output, and background info
+*/
 int executeCommand(struct commandLine* currCommand){
 
 
@@ -255,7 +265,9 @@ int executeCommand(struct commandLine* currCommand){
     exit(1);
 }
 
-
+/*
+handles SIGTSP signal
+*/
 void handle_SIGTSTP(int sig){
     if(got_signal == 0){
         char* message = "\nEntering foreground-only mode (& is now ignored)\n";
@@ -276,9 +288,10 @@ void handle_SIGTSTP(int sig){
     }
 }
 
-
-// I couldnt get fflush(stdin) to do anything about stopping an infinite loop, so I found this on stack overflow
-// https://stackoverflow.com/questions/53474700/c-scanf-did-not-stop-in-infinite-while-loop
+/*
+clears input so that infinite loop does not occur.
+Code was found from https://stackoverflow.com/questions/53474700/c-scanf-did-not-stop-in-infinite-while-loop
+*/
 void empty_stdin(void) {
     int c = getchar();
 
